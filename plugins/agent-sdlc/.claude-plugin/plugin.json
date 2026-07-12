@@ -1,0 +1,6 @@
+{
+  "name": "agent-sdlc",
+  "version": "0.1.0",
+  "description": "appleboy 企業級 Agent-Skill SDLC 工作流的自製 skill pack:一條鏈 6 支 skill(prompt-audit→plan-feature→classify-change→commit-message→pr-prepare→external-ai-review)+ 進度導航器 sdlc(讀進度檔報下一步、每關完成自動回呼更新),共 7 支;各以 /agent-sdlc:<skill> 顯式調用或依 description auto-trigger;自足、可跨站共享、可共同維護",
+  "author": { "name": "tapiocamilkoao" }
+}

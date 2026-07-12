@@ -1,0 +1,11 @@
+# 隔離區與審查產物不進版控
+quarantine-skills/
+*AUDIT-REPORT*
+
+# 本機 plugin 安裝殘留(local-scope install/marketplace 狀態,勿 commit)
+.claude/settings.local.json
+
+# 本機雜物
+.DS_Store
+Thumbs.db
+*.log

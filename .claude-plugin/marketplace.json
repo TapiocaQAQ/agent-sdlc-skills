@@ -1,0 +1,11 @@
+{
+  "name": "agent-sdlc-skills",
+  "owner": { "name": "tapiocamilkoao" },
+  "metadata": {
+    "description": "appleboy 企業級 Agent-Skill SDLC 工作流的自製 skill pack(自足、可跨站共享)",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    { "name": "agent-sdlc", "source": "./plugins/agent-sdlc" }
+  ]
+}

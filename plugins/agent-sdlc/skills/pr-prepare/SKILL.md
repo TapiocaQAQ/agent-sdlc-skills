@@ -219,4 +219,8 @@ If you see any of these in the diff, raise them BEFORE producing the PR text. Th
 
 ## After this gate
 
-When this gate is complete, **REQUIRED: invoke `/agent-sdlc:sdlc`** to update the feature's SDLC progress file — it marks this gate done and refreshes the "current → next step" block so you always know what comes next. (If no progress file exists yet, `sdlc` creates one from the pack template. `sdlc` only navigates — it will not run the next gate for you.)
+<!-- DELIBERATE DELTA vs upstream appleboy/skills: sdlc callback is CONDITIONAL on a progress file existing (standalone single-skill use isn't forced into the full lifecycle). Intentional — don't restore the unconditional "REQUIRED" form. -->
+
+**Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
+
+**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate 10 — `/agent-sdlc:external-ai-review`**.

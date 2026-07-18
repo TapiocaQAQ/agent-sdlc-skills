@@ -65,5 +65,5 @@ If the user tried to skip a gate (e.g. wants to merge with gate 10 external-ai-r
 
 ## Relationship to the rest of the pack
 
-- The 6 pack skills (gates 0/1/3/8/9/10) each call back to you when their gate completes — that is what keeps the progress file current without the user thinking about it.
+- The 6 pack skills (gates 0/1/3/8/9/10) call back to you when their gate completes **and a progress file exists** (i.e. the feature is running the full lifecycle, not a standalone single-skill use) — that is what keeps the progress file current without the user thinking about it.
 - Built-in gates 5/6/7 reconcile at the next pack gate (8) — the progress file carries that truth across any `/compact`.

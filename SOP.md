@@ -28,5 +28,5 @@
 ## 導航機制
 
 - **顯式**:隨時打 `/agent-sdlc:sdlc` 問「我到哪了、下一步是什麼」。
-- **自動**:每個 pack skill(第 0/1/3/8/9/10 關對映的 6 支)收尾都會 REQUIRED 回呼 `/agent-sdlc:sdlc`,自動勾選本關、刷新下一步。
+- **自動**:在跑完整流程時(進度檔存在),每個 pack skill(第 0/1/3/8/9/10 關對映的 6 支)收尾會回呼 `/agent-sdlc:sdlc`,自動勾選本關、刷新下一步;單獨用一支 skill 則不回呼、只在該支收尾提醒下一步。
 - **進度檔**:每功能一支、放開發 repo `docs/sdlc/<feature>-sdlc-progress.md`、**gitignored working scratch**(同 mem-tmp 性質)、**結案(第 11 關 merge)即刪不歸檔**——commit + PR 本身就是永久紀錄。

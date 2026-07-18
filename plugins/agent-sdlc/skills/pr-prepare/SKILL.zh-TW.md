@@ -225,4 +225,8 @@ sequenceDiagram
 
 ## 本關完成後
 
-本關完成後,**REQUIRED:呼叫 `/agent-sdlc:sdlc`** 更新本功能的 SDLC 進度檔——標記本關完成、刷新「目前 → 下一步」區塊,讓你隨時知道下一步。(若進度檔尚不存在,`sdlc` 會依 pack 模板建一份。`sdlc` 只導航——不會替你跑下一關。)
+<!-- DELIBERATE DELTA(vs upstream appleboy/skills):回呼 sdlc 改為「進度檔存在才接」的條件式,單獨用一支不被逼進完整流程。刻意為之——別還原成無條件 REQUIRED 版。 -->
+
+**在跑完整 agent-sdlc 生命週期?** 若有 `docs/sdlc/<feature>-sdlc-progress.md`(或你刻意啟動整條 SOP 鏈),呼叫 `/agent-sdlc:sdlc`——它勾掉本關並回報確切的 ⏭ 下一步。只導航,不替你跑下一關。
+
+**單獨用這支 skill?** 那你已完成——**不要**呼叫 `/agent-sdlc:sdlc`(沒有進度檔可更新)。若想繼續,通常接的下一步是 **gate 10 `/agent-sdlc:external-ai-review`**。

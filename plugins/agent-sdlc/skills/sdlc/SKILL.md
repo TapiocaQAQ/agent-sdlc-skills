@@ -46,7 +46,19 @@ If the user tried to skip a gate (e.g. wants to merge with gate 10 external-ai-r
 ## Initialization (no progress file yet)
 
 1. Copy the bundled template into the dev repo: from this plugin's `templates/sdlc-progress.template.md` (one level up from `skills/`, i.e. `../../templates/sdlc-progress.template.md`) → `docs/sdlc/<feature>-sdlc-progress.md`.
-2. Fill the header: feature name, open date, planning tool (superpowers | plan-feature), base/work branch, and the leaf/core verdict if known.
+2. Fill the header: feature name, open date, planning track (see below), base/work branch, and the leaf/core verdict if known.
+
+   **Planning track — chain the tools, don't pick one.** They sit at *different altitudes* and compose; they are not alternatives:
+
+   | Stage | Tool | Produces |
+   |:--|:--|:--|
+   | a. Clarify + compare approaches | `superpowers:brainstorming` *(if installed)* | an approved design/spec; forces 2–3 approaches with trade-offs, asks one question at a time |
+   | b. **Decision layer (mandatory)** | `/agent-sdlc:plan-feature` | goal, may-modify + **must-not-touch**, verification strategy, Mermaid, risks, **rollback** |
+   | c. Implementation layer | `superpowers:writing-plans` *(if installed, and only when the work is code-heavy enough to need per-task steps)* | per-task red-then-green steps |
+
+   Stage **b is never skippable** — it is the only one that produces the must-not-touch list, the rollback, and the planning-exit checklist items. Stages a and c degrade gracefully: if superpowers is not installed, skip them and note that in the progress file.
+
+   Record which stages actually ran, e.g. `brainstorming + plan-feature`.
 3. Ensure `docs/sdlc/` is gitignored in the dev repo (it is a working scratch, same nature as mem-tmp — it must never enter version control). If the repo's `.gitignore` does not cover it, tell the user to add `docs/sdlc/`.
 4. Then run Steps 2–4.
 

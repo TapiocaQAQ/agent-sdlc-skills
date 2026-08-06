@@ -21,6 +21,12 @@ Use whenever the user asks to build something non-trivial. Triggers include:
 
 Do not use for: typo fixes, single-line config changes, simple renames, or when the user has already provided a complete spec.
 
+## Before Step 1 — is there an upstream stage you're skipping?
+
+This skill is the **decision layer** of a three-stage planning chain. If `superpowers:brainstorming` is installed and the feature is at all complex or ambiguous, **run it first** — it forces 2–3 approaches with trade-offs and asks clarifying questions one at a time, which this skill's Step 1 does not. Then come back here; brainstorming's spec becomes this plan's input.
+
+Say which stage you are on, so the user can redirect before ~15 minutes of planning goes the wrong way. If brainstorming isn't installed, or the feature is small and well-understood, proceed straight to Step 1 and say so. The full chain (and where `superpowers:writing-plans` fits after this skill) is in `/agent-sdlc:sdlc`'s Initialization step.
+
 ## The eight-step workflow
 
 Follow these in order. Stop at the user-approval step before drafting code.
@@ -66,6 +72,15 @@ Before any code is written, agree on how correctness will be checked:
 - How will the feature be observable in production (logs, metrics)?
 
 Verification design comes BEFORE implementation design — this is the "verifiable checkpoints" principle.
+
+**If the change is subtractive — it blocks, strips, filters, redacts, or rewrites something away — one-directional assertions do not count.** "Did it remove X?" is trivially satisfiable by removing *everything*, so every restrictive assertion needs a paired survival assertion:
+
+- **Capture a baseline before the change.** Snapshot the complete "before" state — the full list, the full text, the timings. Without it, "nothing else was removed" has nothing to compare against, and "it didn't get slower" is unfalsifiable.
+- **Pair every assertion.** For each "X must be gone", write the matching "everything except X must still be there" — byte-identical where it should be untouched, and non-empty *and still fit for purpose* where it was rewritten rather than deleted. Emptying a field is not a passing rewrite.
+- **Write assertions as set operations against the baseline**, not as hardcoded counts or hand-copied lists. `set(baseline) - set(after) == {intended}` catches "one dropped plus one added"; comparing counts lets those cancel out. A hand-copied list silently goes stale the moment the population changes.
+- **A negative control is a different thing and you need both.** Pairing proves the change didn't over-strip; a negative control (feed the checker a known-bad input and require it to FAIL) proves the checker is looking at all.
+
+This guards against the implementer — including a future Claude — taking the cheapest path when the change gets hard: stripping a little more is the easiest fix to make and the hardest for anyone to notice.
 
 ### Step 5 — Sketch the design as a diagram
 

@@ -48,7 +48,20 @@ description: 更新目前功能的 SDLC 進度檔並回報下一步。當使用�
 ## 初始化(尚無進度檔)
 
 1. 複製 bundled 模板到開發 repo:從本 plugin 的 `templates/sdlc-progress.template.md`(在 `skills/` 上一層,即 `../../templates/sdlc-progress.template.md`)→ `docs/sdlc/<feature>-sdlc-progress.md`。
-2. 填頭部:feature 名、開題日、規劃工具(superpowers | plan-feature)、base/工作 branch、已知的 leaf/core 裁決。
+2. 填頭部:feature 名、開題日、規劃鏈(見下)、base/工作 branch、已知的 leaf/core 裁決。
+
+   **規劃這關要「串起來」,不是二選一。** 這兩支工具在**不同高度**、可以疊,不是替代關係:
+
+   | 階段 | 工具 | 產出 |
+   |:--|:--|:--|
+   | a. 釐清 + 比方案 | `superpowers:brainstorming`(**有裝才跑**) | 經核可的 design/spec;強制 2–3 個方案比 trade-off、一次只問一題 |
+   | b. **決策層(必跑)** | `/agent-sdlc:plan-feature` | 目標、may-modify + **must-not-touch**、驗證策略、Mermaid、風險、**回滾** |
+   | c. 實作層 | `superpowers:writing-plans`(**有裝**,且工作 code 量大到需要逐 task 拆步驟才跑) | 逐 task 的 red-then-green 步驟 |
+
+   **b 永遠不可跳過**——只有它產出 must-not-touch 清單、回滾方案、以及 planning-exit checklist 要的東西。
+   a 與 c 優雅降級:沒裝 superpowers 就略過,並在進度檔註明。
+
+   記下**實際跑了哪幾段**,例如 `brainstorming + plan-feature`。
 3. 確認開發 repo 的 `docs/sdlc/` 已 gitignore(它是工作 scratch,同 mem-tmp 性質——絕不進版控)。若 `.gitignore` 未涵蓋,提示使用者加 `docs/sdlc/`。
 4. 然後跑第 2–4 步。
 

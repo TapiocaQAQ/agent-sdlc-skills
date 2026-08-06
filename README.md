@@ -92,18 +92,33 @@ flowchart TD
 
 ---
 
-## 雙軌規劃 + planning-exit checklist
+## 規劃鏈 + planning-exit checklist
 
-規劃這關有兩條路,**開工時人選一條**(不另做 chooser skill,YAGNI):
+> 🔴 **2026-08-06 更正**:這節原本寫「兩條路,開工時人選一條」——**那個框架是錯的**,而且那句話只活在
+> README(文件,執行時不載入)裡,所以**永遠不會在該觸發的當下出現**。實測後果:直接打
+> `/agent-sdlc:plan-feature` 時完全沒人提起還有另一條路。
+> 現已改為**串起來**,並搬進 skill 本體(`sdlc` 初始化 + `plan-feature` Step 1 之前),執行時才擋得到。
 
-- **superpowers**(第三方 [obra/superpowers](https://github.com/obra/superpowers),更厚重、2 段式 spec + plan、強制多方案 + 多 review gate):使用者環境**已裝時的升級選項**,複雜/模糊功能用它。**不 vendor 進本 pack**。
-- **`/agent-sdlc:plan-feature`**(本 pack 自帶、忠實 appleboy、自足):另一台機**沒裝 superpowers 就走它**,優雅降級。
+兩支工具在**不同高度**、**可以疊**,不是替代關係:
 
-無論走哪條,**規劃退出前要滿足這張檢查表**(是 `plan-feature` 的 superset,superpowers 的產物本就涵蓋):
+| 階段 | 工具 | 產出 | 沒裝時 |
+|:--|:--|:--|:--|
+| a. 釐清 + 比方案 | **`superpowers:brainstorming`**(第三方 [obra/superpowers](https://github.com/obra/superpowers),**不 vendor 進本 pack**) | 經核可的 design/spec;強制 2–3 個方案比 trade-off、一次只問一題、HARD-GATE 擋住未核可就開工 | 略過,直接進 b |
+| b. **決策層(必跑)** | **`/agent-sdlc:plan-feature`**(本 pack 自帶、忠實 appleboy、自足) | 目標、may-modify + **must-not-touch**、驗證策略、Mermaid、風險、**回滾** | — |
+| c. 實作層 | **`superpowers:writing-plans`** | 逐 task 的 red-then-green 步驟(每個 task 內建負向對照) | 略過 |
+
+**b 永遠不可跳過。** a 與 c 沒裝就略過並註明——這就是原本說的「優雅降級」,只是降級的粒度從「整條路」變成「其中一段」。
+
+⚠️ **c 不能替代 b**:`writing-plans` **沒有** must-not-touch 雙清單、**沒有**回滾、**沒有** Mermaid,
+而且它**沒有任何一句**關於「減法型變更要配反向斷言」——TDD 的 red-green 保證「這條測試真的在測東西」,
+**不保證「沒有刪過頭」**。那條在本 pack 的 `plan-feature` Step 4。
+
+無論跑了哪幾段,**規劃退出前要滿足這張檢查表**(是 `plan-feature` 的 superset):
 
 - [ ] **目標**一句話講清楚
 - [ ] **Scope**:may-modify(可動哪些檔)+ **must-not-touch**(絕不碰哪些)
 - [ ] **3 個 e2e**:1 happy(正常成功)+ 2 error(壞輸入/邊界,要優雅不崩)
+- [ ] **減法型變更**(擋掉/剝掉/過濾/去敏/改寫):baseline 已量 ＋ 每條斷言都有**反向配對** ＋ 斷言寫成**集合運算** ＋ 有**負向對照**。**單向斷言不算數**(細節見 `plan-feature` Step 4)
 - [ ] **錨定實際檔案的 Mermaid**(不是抽象方塊,是真的檔名/模組)
 - [ ] **明確核可**:計畫經人 review 才動手
 - [ ] **handoff 句**:交棒給實作者的一句話(誰接、從哪開始)

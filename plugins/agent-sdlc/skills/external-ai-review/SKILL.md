@@ -52,11 +52,68 @@ Each invocation runs **one** cycle. Pair with `/loop` to repeat until clean.
   - A finding whose fix you cannot sweep (no greppable term) is a signal the claim is vague — restate it as something checkable first.
 - Fixes accumulate in the working tree — there is **no per-round commit/push** (there is no PR to push to). Commit once via `/agent-sdlc:commit-message` after the loop converges; hand the PR off via `/agent-sdlc:pr-prepare`.
 
-### 5. Converge with /loop
+### 5. Score the round, then converge with /loop
 
-- Re-run this skill via `/loop` until the reviewer returns **no new `blocker` / `warn`** on the current diff. That clean pass is the only stop condition.
+- Re-run this skill via `/loop` until the reviewer returns **no new `blocker` / `warn`** on the current diff. A fully clean pass is the ideal stop.
+  - In practice a non-deterministic reviewer rarely hands you one, so the working stop condition is **two consecutive rounds with zero *native* accepted findings** — scored per the scorecard below.
 - Each round, log to mem-tmp what was **fixed** and what was **skipped (with the reason)** — this is the audit trail (appleboy keeps it in GitHub PR threads; we keep it in mem-tmp).
-- **Cap at 10 rounds.** Past that usually means an architectural disagreement, not a fixable finding — stop and hand it to the user for human review.
+
+#### ⛔ Every round ends with a scorecard — this is not optional
+
+Without numbers you cannot tell "the reviewer is still finding things I missed" from
+"the reviewer is now editing my prose", and the loop degenerates into *adding rounds*
+instead of *fixing the pipeline*. Report it unprompted:
+
+| Metric | How | Why it's there |
+| --- | --- | --- |
+| Sent volume | chars × lanes | cost |
+| Wall clock | per-lane harvest seconds | cost |
+| Findings / accepted / rejected | per-finding verdict | hit quality |
+| 🔴 **Native accepted** | accepted **and not text you wrote last round** | **the real signal** |
+| 🔴 **Cost per native accepted** | sent ÷ native | **the headline metric** |
+| Instances you swept up yourself | extra sites found per finding | measures the sampling gap |
+| Caught by deterministic tools first | linter / tests / your own script | LLM spend avoided |
+| Previous-round misses | this round catching what last round should have | regression |
+
+- ⛔ **Acceptance rate alone lies.** A round can accept every finding and still be worthless:
+  if all of it is about *your own previous round's wording*, native accepted is **zero** —
+  that is not a great round. Read the native column, and judge convergence over **two**
+  such rounds, not one (see "Reading N results").
+- **After scoring, name one concrete change for the next round** — a changed lens, a check
+  moved into a script, a smaller payload. Not a reflection; something that is different next time.
+- **Feed what you learn back into this skill.** The scorecard exists to change the pipeline,
+  not to decorate the log.
+
+#### Push determinism upstream before spending the sampler
+
+The reviewer **samples**; a checker **enumerates**. Anything a deterministic tool can decide
+should never reach the reviewer:
+
+- **Code**: run the type checker, linter, and tests *before* sending the diff. They are free
+  and exhaustive; paying an LLM to rediscover what `ruff`/`tsc`/`pytest` already flag is waste.
+- **Other artifacts** (docs, configs, schemas): if no checker exists, **that gap is itself a
+  finding**. A ~50-line script covering the claim shapes you actually observed beats another round.
+- Measured on a 2026-08-06 doc review: of 8 findings in one round, **5 were deterministically
+  computable** (table sums, whether cited `file:line` exists and says what's claimed, whether a
+  "shared, one place to fix" claim really has one site, cross-table verdict consistency).
+  That round cost 125K chars for 5 native findings — **25K chars each**, for work a script does
+  in seconds *and exhaustively* rather than one sampled instance at a time.
+- Every accepted finding should leave behind a **re-runnable assertion** — a test for code, a
+  check rule for docs. Then "sweep the axis" means *re-run the suite*, not *grep a string*.
+
+#### Round cap
+
+- **Default cap: 10 rounds**, then hand to the user for human review.
+- ⚠️ **The cap is a budget, not a verdict.** The original rationale ("past 10 means an
+  architectural disagreement, not a fixable finding") was **measured false at least once**:
+  on a 2026-08-06 doc review the 10th round had the *highest* acceptance rate of the run
+  (7/8) and produced the single largest correction in the document — a load-bearing figure
+  that was wrong by 6× and had survived nine prior rounds. **5 of its 8 findings were original
+  defects, not the reviewer editing recent edits.**
+- **So decide by the scorecard, not the counter**: if native accepted is still non-zero and
+  cost per native find is not blowing up, more rounds are justified — say so and let the user
+  choose. The stop condition is **two consecutive rounds with zero native accepted findings**
+  (see "Reading N results" for why one round is not enough).
 
 ## Multi-lens fan-out (scaling one round up)
 
@@ -103,9 +160,16 @@ serial**, because a backgrounded browser tab never renders the streamed response
   — otherwise round N+1 rediscovers it.
 - **Record rejections with reasons**, per step 3. Rejected findings recur across rounds; without
   a written rationale you re-litigate each one every time.
-- **Stop on the *nature* of findings, not the count.** When a round's findings are mostly about
-  text you wrote in the previous round, the reviewer has stopped finding what you missed and
-  started co-editing your draft. That's converged — even if the count hasn't dropped.
+- **Stop on the *nature* of findings, not the count** — but read it over **two consecutive
+  rounds**, never one. When the reviewer stops finding what you missed and starts co-editing
+  your draft, that's converged even if the count hasn't dropped. The metric is the scorecard's
+  **native accepted** column (step 5).
+  - ⛔ **One round is one sample — it is not enough to stop on.** Measured 2026-08-06: round 8
+    produced 2 findings, **both** about the previous round's own edits — by a single-round rule
+    that is "converged, stop". Rounds 9 and 10 then produced **9 more accepted findings, most of
+    them original defects**, including the run's largest correction. Stopping at 8 would have
+    shipped it.
+  - So: stop after **two consecutive rounds with zero native accepted findings**.
 
 ### Tab hygiene
 

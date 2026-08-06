@@ -102,9 +102,50 @@ the same table works for code, docs, configs, and design reviews.
   if all of it is about your own previous round's wording. Judge over **two** rounds, not one
   (see "Reading N results").
 - **After scoring, name one concrete change for the next round** — a changed lens, a check
-  moved into a script, a smaller payload. Not a reflection; something that is different next time.
+  moved into a script, attention aimed at a region. Not a reflection; something that is
+  different next time. ⛔ **Then run it through the four-test gate below before you say it.**
+  "A smaller payload" is *not* a change you may propose on its own — it must arrive as the
+  consequence of mechanizing an axis (test ③), never as the goal.
 - **Feed what you learn back into this skill.** The scorecard exists to change the pipeline,
   not to decorate the log.
+
+#### ⛔ Gate every proposed change through these four tests — *before* you say it out loud
+
+A pipeline change is a claim about the future. Run these yourself; do not make the user
+find the hole. All four are artifact-agnostic — they work for code, docs, configs, schemas.
+
+**① Replay it against the round you just finished.**
+For each finding accepted this round, name the evidence it actually needed, then check that
+evidence still reaches the reviewer under the proposed pipeline. **A change that would have
+missed a finding the current pipeline just produced is a regression, whatever it saves.**
+This is the performance test — it is concrete, replayable, and cannot be argued with.
+
+> Measured 2026-08-06: "review only the diff since last round" was proposed and killed by
+> its own replay. The round's best finding needed the *changed* line (`43 支`, in the diff)
+> **and** the *unchanged* rule that made it wrong (`投影母體是 42`, not in the diff).
+> **Defects live in the new text; the criteria that make them defects live in the old text.**
+> Scoping the payload by "where the defects are" is a category error.
+
+**② Measure every quantitative claim before speaking it.**
+Run `wc`/`du`/the timer first. Same session: "payload drops 140K → 15K" was asserted, never
+measured; the honest diff was 29,898 vs 33,988 chars — **12%, not 90%**. An unmeasured number
+in a proposal is a guess wearing a lab coat.
+
+**③ Removing coverage requires a mechanization proof, never a score.**
+You may retire or repurpose a lane **only** when a deterministic checker now covers its axis
+*and* that checker has passed a negative control. ⛔ "That lane scored zero" is not a reason —
+zero is equally consistent with *the lane is weak* or *this was one quiet sample*, and cutting
+on it is the shrink-the-payload gaming vector wearing a justification.
+
+**④ State the failure mode of your own proposal.**
+If you cannot say what would make it wrong, you have not thought about it yet — present the
+uncertainty instead of the recommendation. And separate what your change *caused* from what
+merely *co-occurred*: one round cannot distinguish "my change worked" from "the artifact ran
+out of original defects". Say which you can attribute and which you cannot.
+
+**Targeting is not truncation.** Pointing the reviewer at the changed region while still
+sending the whole artifact is a targeting change (safe under ①). Deleting the rest is a
+truncation change (usually fails ①). Know which one you are proposing.
 
 #### Push determinism upstream before spending the sampler
 

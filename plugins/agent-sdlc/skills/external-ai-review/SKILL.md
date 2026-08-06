@@ -46,6 +46,10 @@ Each invocation runs **one** cycle. Pair with `/loop` to repeat until clean.
 
 - Fix each accepted `blocker` / `warn` in the code, and add a test that pins the fix where it makes sense.
 - Handle `nit`s at your discretion.
+- ⛔ **Sweep the axis, don't patch the instance — this is mechanical, not a reminder.** The reviewer reports a *sample*; the same mistake almost always exists elsewhere under a different wording. **After each fix, immediately `grep` the whole file/module for every term you just touched** (the wrong claim, the corrected claim, the number, the identifier) and check each hit — *before* moving to the next finding. Sweep **both directions**: if you demoted an incorrect ✅, also look for the ⚠️ that should have been ✅.
+  - Cheapest place to run it is *while the reviewer is still generating* — you already know what you changed last round.
+  - Evidence this is load-bearing: on one 2026-08-06 doc review, **four consecutive rounds'** top blocker was a missed sweep of the *previous* round's fix — one wrong definition silently propagated into a third location. The round that adopted the mechanical grep caught 2 of 7 findings before the reviewer did, one of which the reviewer never found at all.
+  - A finding whose fix you cannot sweep (no greppable term) is a signal the claim is vague — restate it as something checkable first.
 - Fixes accumulate in the working tree — there is **no per-round commit/push** (there is no PR to push to). Commit once via `/agent-sdlc:commit-message` after the loop converges; hand the PR off via `/agent-sdlc:pr-prepare`.
 
 ### 5. Converge with /loop
@@ -53,6 +57,61 @@ Each invocation runs **one** cycle. Pair with `/loop` to repeat until clean.
 - Re-run this skill via `/loop` until the reviewer returns **no new `blocker` / `warn`** on the current diff. That clean pass is the only stop condition.
 - Each round, log to mem-tmp what was **fixed** and what was **skipped (with the reason)** — this is the audit trail (appleboy keeps it in GitHub PR threads; we keep it in mem-tmp).
 - **Cap at 10 rounds.** Past that usually means an architectural disagreement, not a fixable finding — stop and hand it to the user for human review.
+
+## Multi-lens fan-out (scaling one round up)
+
+The reviewer is **non-deterministic**: send the same input twice and the findings barely
+overlap. So a round's silence is *not* evidence of cleanliness — it's one sample. Running N
+rounds serially costs N× the wall-clock for the same coverage as N samples drawn at once.
+
+**Fan-out replaces the sampling inside a round; it does not replace the round loop.**
+Steps 3 (verify), 4 (fix), and 5 (converge) are unchanged — a fan-out round still ends with
+**no commit**, and convergence is still "a full round returns no new `blocker`/`warn`".
+
+### Design the lenses, don't clone the prompt
+
+N copies of the same prompt mostly re-find the same things. Give each lens a **different
+question** and forbid it from answering the others. Lenses that worked on a 24K-char audit doc:
+
+| Lens | Asks only | Forced evidence |
+| --- | --- | --- |
+| **Numbers** | do subtotals, denominators, and "N items" claims add up | the arithmetic that fails |
+| **Contradictions** | do two passages assert incompatible things | **quote both passages** |
+| **Self-rule violations** | does the doc break a rule it set itself | **quote the rule, then the violation** |
+| **Structure / cross-refs** | do headings match content, do "see section X" refs resolve | the ref and its actual target |
+
+Add a global "⛔ out of scope" block to every lens (facts it cannot check, judgments it was
+not given the source material for) — otherwise lenses drift into speculating about the domain.
+
+### Delegating N at once
+
+Mechanics belong to the reviewer implementation, not here — for v1 see `sub-gemini` **mode D**.
+The one rule that bites regardless of implementation: **parallel send is fine, harvest must be
+serial**, because a backgrounded browser tab never renders the streamed response. Its failure is
+**silent and looks exactly like "still thinking"**.
+
+### Reading N results — count is not credibility
+
+- ⛔ **Agreement across lenses is not a truth signal.** How many lenses raised a finding measures
+  *how easy it was to think of*, not *how likely it is to be true*. Measured: four lenses
+  independently asserted the same wrong claim (all four had skipped checking how the code
+  handled the upstream value); the single most valuable finding of the round came from **one**
+  lens alone. **Verify every finding yourself (step 3) regardless of how many lenses raised it.**
+- ✅ **What agreement *is* good for: locating ambiguity in your own writing.** When two
+  independent lenses (or two rounds) misread the *same* passage the *same* way, the passage is
+  genuinely unclear even if their conclusion is wrong. Reject the claim **and** fix the wording
+  — otherwise round N+1 rediscovers it.
+- **Record rejections with reasons**, per step 3. Rejected findings recur across rounds; without
+  a written rationale you re-litigate each one every time.
+- **Stop on the *nature* of findings, not the count.** When a round's findings are mostly about
+  text you wrote in the previous round, the reviewer has stopped finding what you missed and
+  started co-editing your draft. That's converged — even if the count hasn't dropped.
+
+### Tab hygiene
+
+**Close each reviewer tab as soon as you have harvested it** — it is part of "get the result",
+not cleanup for later. Log the conversation URL if you may want to revisit; do not keep tabs
+open as bookmarks.
 
 ## Relationship to the rest of the pack
 

@@ -25,7 +25,8 @@ The full 12-step chain is the pack's `SOP.md`. The progress file is the single s
 
 - Read the progress file.
 - Read git state to corroborate: current branch, staged/unstaged changes, recent `git log --oneline -n 5`.
-- Note what the current conversation has just done — this is how you reconcile the **built-in** gates (5 `/simplify`, 6 `/security-review`, 7 `/code-review max -fix`), which are Claude Code built-ins that cannot call back on their own. When you are invoked as the callback right after gate 8 (commit-message), tick 5/6/7 too if they were run in this session.
+- Note what the current conversation has just done — this is how you reconcile the **built-in** gates (5 `/simplify`, 6 `/security-review`, 7 `/code-review max -fix`), which are Claude Code built-ins that cannot call back on their own. Tick 5/6/7 at the **first pack gate that follows them** — in the pack's execution order `… → 7 → 9 → 10 → Δ → 8 → 11` that is gate 9 (`pr-prepare`), not gate 8.
+- ⚠️ **Read the order from `SOP.md`, not from the numbers.** Gate 8 (commit) runs after 9, 10 and Δ. A feature sitting at gate 7 has ⏭ `/agent-sdlc:pr-prepare` next, not commit-message.
 
 ## Step 3 — Update the file
 
@@ -33,6 +34,7 @@ The full 12-step chain is the pack's `SOP.md`. The progress file is the single s
 - Refresh the top block **📍 目前位置 → ⏭ 下一步 → 卡點** — this is the landing spot the user reads to know the next step. Make "下一步" a concrete action (e.g. `` `/simplify` ``, `/agent-sdlc:commit-message`, "human review the core diff").
 - Append known facts to **紀錄 / 連結**: commit hashes, PR URL, external-review summary, and any **decision/drift** (e.g. planned leaf but the real diff drifted core — record the upgrade).
 - Do **not** invent completion. If git state does not corroborate a gate, leave it unticked and say so.
+- **Gate Δ needs its own line, not just a tick**: which lines were the population, what was enumerated, how many findings, and whether the severity threshold was met (≥1 finding that reaches a dangerous path or overturns a written guarantee → escalate to a second full gate 7). If gates 9/10 accepted nothing, Δ's population is empty — record "Δ skipped, empty population". ⚠️ "Δ ran and found nothing" and "Δ never ran" must not look the same on the file.
 
 ## Step 4 — Report to the user
 

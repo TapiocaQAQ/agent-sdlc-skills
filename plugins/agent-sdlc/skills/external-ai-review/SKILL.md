@@ -31,23 +31,76 @@ Each invocation runs **one** cycle. Pair with `/loop` to repeat until clean.
 - Summarize: what changed, `classify-change`'s leaf/core verdict, and what the reviewer should look hardest at (e.g. money precision, auth, boundaries, error paths).
 - ⛔ **Sensitive-data red line — this is the gate that makes an *external* reviewer safe.** Before anything leaves your machine for the reviewer, **strip every piece of real data, secret, or PII**: real CSV/DB contents, invoice-carrier numbers, verification codes, `.env` values, API keys, tokens, real user records. Send **only source-code diff and synthetic examples**. `copilot-review` / `codex-review` never needed this — their diff is already inside GitHub; here the diff is *sent out* to Gemini, so redaction is mandatory. If a hunk cannot be shown without real data, replace the data with a synthetic placeholder or omit that hunk and note it.
 
+- ⛔ **Name the payload's edges, and send the *rendered* artifact, not only the rule that produces it.** A reviewer cannot tell "this file is absent because it is out of scope" from "this reference is dead", and it cannot judge whether an edit reads well when all it has is the edit *table*. Measured on a 2026-08-07 round: **3 of 7 rejected findings were caused by the input, not by the reviewer** — two lens findings claimed a description had lost its entry condition (the surviving text said it in the first two sentences, which were not in the payload), and one reported a live cross-reference as a dead link (both files are version-controlled, just not in the diff).
+  - So: list the files that are referenced but deliberately excluded, and say they exist. Say which artifacts are generated.
+  - And when the change is a *transform* (a rewrite table, a codegen rule, a migration), attach **before/after of the actual output** for the affected items. Measured cost on that round: +29,230 chars, +41% on that one lane and +10% on the round — cheap next to the rejections it removes. This is a targeting change, not truncation: nothing is taken away.
+
 ### 2. Delegate to the reviewer (v1: sub-gemini)
 
 - Invoke the `sub-gemini` skill and follow its full playbook (open a fresh `/app` tab, fill then send via JS `eval`, verify the send with `get url`, poll until the "stop responding" control disappears, then read the last `message-content`). Do not duplicate those browser details here — the `sub-gemini` skill owns them.
-- Make the prompt self-contained: attach the change summary + the **redacted** diff + an explicit ask: "List findings as `file:line`, severity (`blocker` / `warn` / `nit`), and how to fix."
+- Make the prompt self-contained: attach the change summary + the **redacted** diff + an explicit ask: "List findings as `file:line`, **how you would falsify this claim from the material you were given**, and how to fix."
+- ⛔ **Ask for a falsifier, not a severity.** Severity is the reviewer grading its own homework, and it grades generously: measured across two fan-out rounds of one code review, **13 findings came back labelled `blocker`; 9 were rejected or downgraded on inspection, and exactly 1 was a defect that reached runtime behaviour.** One lens returned 5 blockers of which 0 survived. A severity field costs nothing to inflate and tells you nothing you would not learn in step 3 anyway.
+  - What a **falsifier** buys you: the finding arrives with the experiment attached. Replayed against that round, every rejected blocker was killed by a measurement *I had to design myself* (does any schema key contain a blocked name? does `$ref` appear anywhere? what does anyio actually put in the group?). Demanding the recipe up front moves that work to the reviewer without losing a single finding.
+  - Keep severity if you like it, but **read it as the reviewer's confidence, never as yours** — and never let it order your work.
+  - ⚠️ Its own failure mode: a reviewer can invent a plausible-sounding falsifier the same way it invents a severity. You still choose and run the measurement; the recipe is a hint, not a result.
+  - ⛔ **Run the falsifier, then check the premise it takes for granted.** A falsifier tests
+    the *claim*; it cannot test the *requirement the claim invokes*. Measured 2026-08-07: a
+    finding said a probe's `samples_ms` must be sorted "to satisfy the cross-run comparison
+    requirement", and supplied a falsifier that ran clean — the array is indeed unsorted. The
+    finding was still wrong, because **no such requirement existed**: nothing compares that
+    array between runs, and sorting would have destroyed the only within-run drift signal it
+    carries. Ask of every finding: *what does this assume is required, and is it?*
+  - ✅ Where the field actually paid: two findings that round were killed by a **single**
+    measurement, and reading their falsifiers is what told me which one measurement to run.
+    Their own recipes were useless (one grepped a variable name the reviewer had invented),
+    but they revealed the shared assumption — so I falsified the assumption instead of the
+    two claims. **The recipe's value is often the assumption it exposes, not the check it names.**
 
 ### 3. Verify the reviewer's findings (Claude's job — do NOT blindly accept)
 
 - Gemini hallucinates more than a code-tuned bot, so **every finding is a claim to check, not an instruction to obey.** For each one, confirm against the actual diff that the code and the `file:line` really exist and that the problem is real before accepting it.
 - For any finding that touches a fact, version, or API contract, verify it independently — do not take Gemini's word.
 - Drop hallucinated, stale, or architecture-conflicting findings, and record *why* each was dropped (this is the local equivalent of appleboy's "reply with a rationale before resolving").
+- ⛔ **Judge the observation and the proposed fix separately — they fail independently.**
+  A finding can be *right about the defect* and *wrong about the remedy*, and accepting it
+  wholesale ships the remedy. Measured twice on one 2026-08-07 review:
+  - A reviewer correctly found a scan that missed a spelling, and proposed normalising
+    spaces. Its own measurement looked free — **0 false positives on all 35 recorded
+    inputs**. But that scan fails *startup*, and against plausible English it fired on 6 of
+    6: "Returns host health and uptime", "A cluster health summary is not available here" —
+    the second being a sentence the project would itself write. The fix would have shipped
+    a container that will not boot.
+  - Another correctly found an unguarded reference, and proposed overloading an unrelated
+    table to hold it, which would have broken that table's own invariant.
+  In both cases the right move was **accept the observation, redesign the fix** — and, where
+  the boundary is deliberate, *write the limit down and pin it with a test* so the next
+  round does not re-propose the dangerous version. ⚠️ Measuring the fix against the data you
+  *have* is not enough when the fix guards against data you do not have yet; test it against
+  what could plausibly arrive.
 
 ### 4. Fix
 
 - Fix each accepted `blocker` / `warn` in the code, and add a test that pins the fix where it makes sense.
 - Handle `nit`s at your discretion.
 - ⛔ **Sweep the axis, don't patch the instance — this is mechanical, not a reminder.** The reviewer reports a *sample*; the same mistake almost always exists elsewhere under a different wording. **After each fix, immediately `grep` the whole file/module for every term you just touched** (the wrong claim, the corrected claim, the number, the identifier) and check each hit — *before* moving to the next finding. Sweep **both directions**: if you demoted an incorrect ✅, also look for the ⚠️ that should have been ✅.
+  - ⛔ **It has to produce a table, or it does not happen.** Written as a reminder it gets skipped — measured: on a 2026-08-07 code review the sweep was in this skill the whole time and **three consecutive rounds' escaped defects were all sibling sites of the previous round's own fix** (a claim of "all three branches" that covered two; two of three identical matchers case-folded and the third left alone; a count that was wrong the moment it was written). So make it an artifact, landed in mem-tmp before the next round starts:
+
+    | term I changed | grep hits | verdict per hit |
+    | --- | --- | --- |
+
+    The terms are every identifier, number, and phrase you touched — plus the corrected form, so you sweep **both directions**. The round that first produced this table found **7 sites, 6 of which the reviewer never mentioned at all**.
+  - ⛔ **Any claim of the form "X, because \<arithmetic\>" gets its own row, and the verdict
+    column must show the recomputation — not a yes/no.** Counts you can grep; formulas you
+    have to evaluate, and a formula in confident prose reads exactly like a verified one.
+    Measured 2026-08-07: a probe docstring said raising the sample count from 5 to 10 stopped
+    the nearest-rank p95 from being the maximum. `ceil(0.95 × 10) = 10` — index 10 of 10, still
+    the maximum. **The recorded data was its own disproof** (p95 == max on every row), and the
+    claim survived *five* review rounds and a max-effort code review because every pass read it
+    as a measurement instead of evaluating it. Sweeping that one claim then found a second site
+    the reviewer never mentioned. Include: percentile/index arithmetic, "N of M", percentages,
+    thresholds, complexity claims, and any "so that means" that connects two numbers.
   - Cheapest place to run it is *while the reviewer is still generating* — you already know what you changed last round.
+  - ⚠️ Read a table of all-zero hits as **"I aimed it wrong"**, not as "the code is clean". And it only catches *greppable* siblings: the same false claim rephrased is invisible to it. That is a bound on the method, not a reason to skip it.
   - Evidence this is load-bearing: on one 2026-08-06 doc review, **four consecutive rounds'** top blocker was a missed sweep of the *previous* round's fix — one wrong definition silently propagated into a third location. The round that adopted the mechanical grep caught 2 of 7 findings before the reviewer did, one of which the reviewer never found at all.
   - A finding whose fix you cannot sweep (no greppable term) is a signal the claim is vague — restate it as something checkable first.
 - Fixes accumulate in the working tree — there is **no per-round commit/push** (there is no PR to push to). Commit once via `/agent-sdlc:commit-message` after the loop converges; hand the PR off via `/agent-sdlc:pr-prepare`.
@@ -109,6 +162,39 @@ the same table works for code, docs, configs, and design reviews.
 - **Feed what you learn back into this skill.** The scorecard exists to change the pipeline,
   not to decorate the log.
 
+#### ⛔ Carry a cross-round coverage ledger — an unexamined region is not a clean one
+
+The scorecard tells you whether the *reviewer* is still productive. It cannot tell you which
+parts of the artifact have **never been looked at** — and that is where the oldest defects sit,
+because they were written before round 1 and no lens has been pointed at them since.
+
+⚠️ **The step-4 sweep cannot cover this, by construction.** That sweep is anchored on *terms
+you just changed*, so text written once and never edited is permanently outside it. The two
+mechanisms are complementary: the sweep finds siblings of *this round's* edits; the ledger
+finds regions *no round* has questioned. Measured 2026-08-07 on a 5-round code review: the 9
+lenses of rounds 1–3 asked exclusively about the three modules under active edit. The build
+files and the measurement probes were first examined in round 4, and the run's oldest defect —
+a percentile claim written at gate 4, wrong on evaluation, which had survived five review
+rounds *and* a max-effort code review — did not surface until round 5.
+
+Carry one table forward across rounds, and let it order the next round's lenses:
+
+| region | round · lens | the question that lens asked |
+| --- | --- | --- |
+
+- **A region with no rows gets a lens next round**, ahead of a third pass at the hot module.
+  Purely additive — it changes *aim*, not payload (see "Targeting is not truncation").
+- ⛔ **The "question asked" column is the load-bearing one — a bare file list is worse than no
+  table at all.** Coverage without the question records *someone looked*, and a later round
+  reads that as *it is clean*. Measured on that same run: round 4's build lens **did** read the
+  probe holding the percentile defect, and returned a finding about that very file, which was
+  rejected as an invented requirement. A file-only ledger would have marked the probe *covered,
+  nothing found* and deprioritized it. The defect surfaced only because round 5 asked that
+  region a **different** question — not because it got a second look.
+- ⚠️ Its own failure mode: the ledger records only questions you thought to ask, so an axis
+  nobody ever conceived reads exactly like a well-covered one. It bounds **repetition**, not
+  **blindness**. A full table means "stop re-asking", never "everything has been checked".
+
 #### ⛔ Gate every proposed change through these four tests — *before* you say it out loud
 
 A pipeline change is a claim about the future. Run these yourself; do not make the user
@@ -154,6 +240,16 @@ should never reach the reviewer:
 
 - **Code**: run the type checker, linter, and tests *before* sending the diff. They are free
   and exhaustive; paying an LLM to rediscover what `ruff`/`tsc`/`pytest` already flag is waste.
+- ⛔ **"Tool X reports clean" is not a claim until the tool's version *and* rule set are
+  pinned.** Otherwise it silently changes meaning between rounds and you will read a tool
+  upgrade as a regression in your own code. Measured 2026-08-07: `uv tool run ruff` resolves
+  to latest, ruff 0.16.1 widened its default rule set, and **unchanged code that reported
+  clean in round 3 reported 21 errors in round 4** — while the round-3 rule set still passed.
+  Pin it, then record the call on each newly-surfaced rule (adopted / fixed / declined-with-
+  reason) so the next person does not re-derive it. The same trap applies to any
+  auto-updating checker: formatters, `npm audit`, type checkers, CI base images.
+  - This belongs to the round's sweep, not just its setup: your sweep covers claims *you*
+    wrote, and this is a claim your *tooling* wrote on your behalf.
 - **Other artifacts** (docs, configs, schemas): if no checker exists, **that gap is itself a
   finding**. A ~50-line script covering the claim shapes you actually observed beats another round.
 - Measured on a 2026-08-06 doc review: of 8 findings in one round, **5 were deterministically
@@ -258,4 +354,6 @@ A long review loop is token-heavy. At the end of each round, check context usage
 
 **Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
 
-**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate 11 — 🚦 human line-by-line review & merge (no skill; the final human gate)**.
+**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate Δ — enumerate every line this round's gates changed (report-only; defined in the pack's `SOP.md`)**, then gate 8 `/agent-sdlc:commit-message`, then gate 11.
+
+⚠️ **Δ's population is the code *this skill just changed*.** Every fix applied in step 4 was written by someone who had, moments earlier, been shown to be thinking too narrowly about that exact spot — which is the one place another round of *sampling* structurally cannot see, because it looks already-fixed. A clean final round means "the reviewer found nothing new by sampling", never "those fixes are wide enough". Do not let a clean pass here stand in for Δ.

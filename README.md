@@ -68,12 +68,19 @@ flowchart TD
     A["/agent-sdlc:prompt-audit<br/>需求輸入端把關"] --> B["規劃(見下方雙軌)"]
     B --> C["/agent-sdlc:classify-change<br/>嚴謹度校準 leaf/core"]
     C --> D["寫 code + 內建<br/>/simplify /security-review /code-review"]
-    D --> E["/agent-sdlc:commit-message<br/>人審閘 + Co-Authored-By"]
-    E --> F["/agent-sdlc:pr-prepare<br/>第二檢查點 + 資料紅線"]
+    D --> F["/agent-sdlc:pr-prepare<br/>第二檢查點 + 資料紅線"]
     F --> G["/agent-sdlc:external-ai-review<br/>外部第二審(sub-gemini)"]
     G -->|"配 /loop 收斂"| G
-    G --> H["人審(core 變更必逐行)"]
+    G --> X["Δ 枚舉這一輪改過的每一行<br/>只報告、不 auto-fix"]
+    X -->|"≥1 條達門檻"| D
+    X --> E["/agent-sdlc:commit-message<br/>人審閘 + Co-Authored-By"]
+    E --> H["人審(core 變更必逐行)"]
+    style X fill:#dff0d8,stroke:#3c763d
 ```
+
+⚠️ **commit 排在 9/10/Δ 之後**,和上游 appleboy 的 8 → 9 → 10 不同:他那兩關是 **GitHub PR bot**,
+本來就要先有 commit 和 PR;本 pack 的 reviewer 審的是 **local diff**,先 commit 只會讓審出來的修正
+變成第二顆 commit 或 amend。**Δ 是本地新增的一關**(上游沒有),定義與升級門檻見 [`SOP.md`](SOP.md)。
 
 ---
 
@@ -82,7 +89,7 @@ flowchart TD
 上面那條鏈是**流程地圖**;真正跑起來時,你不用自己記在第幾關。pack 有一支導航 skill 幫你導引:
 
 - **`/agent-sdlc:sdlc`** —— 進度檔的**更新器 / 導航器**:讀「每功能一支」的進度檔 + git 狀態,勾選已完成關卡、刷新「📍目前位置 → ⏭下一步 → 卡點」,回報下一步。它**只導航,不跑鏈**(不替你跑下一關、不核可人審閘、不 commit)。
-- **跑完整流程時每過一關自動更新**:當進度檔存在(即在跑整條鏈),6 支關卡 skill(prompt-audit / plan-feature / classify-change / commit-message / pr-prepare / external-ai-review)收尾會回呼 `/agent-sdlc:sdlc`,免你手動叫;**單獨用一支 skill 時不回呼、只在該支收尾提醒下一步**。內建 5–7 關(`/simplify`·`/security-review`·`/code-review`)無法自回呼,由下一個 pack 關卡(commit-message)追認。
+- **跑完整流程時每過一關自動更新**:當進度檔存在(即在跑整條鏈),6 支關卡 skill(prompt-audit / plan-feature / classify-change / commit-message / pr-prepare / external-ai-review)收尾會回呼 `/agent-sdlc:sdlc`,免你手動叫;**單獨用一支 skill 時不回呼、只在該支收尾提醒下一步**。內建 5–7 關(`/simplify`·`/security-review`·`/code-review`)無法自回呼,由**下一個跑到的** pack 關卡追認——依現行順序是 `pr-prepare`,不是 `commit-message`。
 - **進度檔**:每功能一支,放**開發 repo** 的 `docs/sdlc/<feature>-sdlc-progress.md`,是 **gitignored working scratch**(同 mem-tmp 性質,絕不進版控)。模板隨 pack:`plugins/agent-sdlc/templates/sdlc-progress.template.md`;`sdlc` 初始化時複製一份到開發 repo。
 - **結案**:第 11 關人審合併、PR merge 後,進度檔**直接刪、不歸檔**——commit 與 PR 就是永久紀錄。
 

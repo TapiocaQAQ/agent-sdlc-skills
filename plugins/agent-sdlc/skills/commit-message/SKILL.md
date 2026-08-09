@@ -166,4 +166,6 @@ Only perform actions the user explicitly requested.
 
 **Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
 
-**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate 9 — `/agent-sdlc:pr-prepare`**.
+**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate 11 — 🚦 human line-by-line review & merge (no skill; the final human gate)**.
+
+⚠️ **This gate runs LAST of the automated ones — after 9, 10 and Δ, not before them.** The pack's execution order is `… → 7 → 9 → 10 → Δ → 8 → 11` (see `SOP.md`). `external-ai-review` reviews a **local diff**, so committing first only means the review's own fixes land as a second commit or an amend. If a progress file exists and gates 9/10/Δ are still unticked, say so rather than committing — the numbering is a name, not an order.

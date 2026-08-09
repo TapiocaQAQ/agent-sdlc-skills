@@ -2,15 +2,15 @@
 
 自足、可跨工作站共享、可共同維護的 **Claude Code plugin marketplace**,忠實複製 [appleboy(Bo-Yi Wu, MediaTek)](https://github.com/appleboy) 在 Cloud Summit 2026 LAB 提出的企業級 **Agent-Skill SDLC 工作流**。
 
-整個 pack 是**單一 plugin `agent-sdlc`**,內含一條鏈的 **6 支 skill**:`prompt-audit` → `plan-feature` → `classify-change` → `commit-message` → `pr-prepare` → `external-ai-review`。
+整個 pack 是**單一 plugin `agent-sdlc`**,內含一條鏈的 **7 支 skill**:`prompt-audit` → `plan-feature` → `classify-change` → `commit-message` → `pr-prepare` → `external-ai-review` → `delta-enumerate`。
 
-> **設計原則:不自行簡化關卡。** 每支 skill 忠於 appleboy 上游的把關強度,只在必要處疊上本地規範(commit 人審閘、Co-Authored-By 署名、通用資料紅線、每階段 context 檢查點)。唯一全新自寫的是 `external-ai-review`(見下方 Roadmap)。
+> **設計原則:不自行簡化關卡。** 每支 skill 忠於 appleboy 上游的把關強度,只在必要處疊上本地規範(commit 人審閘、Co-Authored-By 署名、通用資料紅線、每階段 context 檢查點)。全新自寫的是 `external-ai-review` 與 `delta-enumerate`(見下方 Roadmap)。
 
 ---
 
 ## 安裝
 
-pack = 一個 marketplace(`agent-sdlc-skills`)+ 一個 plugin(`agent-sdlc`)。裝好後 6 支 skill 一次到位。
+pack = 一個 marketplace(`agent-sdlc-skills`)+ 一個 plugin(`agent-sdlc`)。裝好後 7 支關卡 skill + 導航器 `sdlc` 一次到位。
 
 ### A. 從 GitHub 裝(發佈後;public repo 免 `gh auth`)
 
@@ -37,7 +37,7 @@ claude plugin install agent-sdlc@agent-sdlc-skills
 
 ---
 
-## 6 支 skill
+## 7 支 skill
 
 顯式調用一律是 **`/agent-sdlc:<skill>`**(如 `/agent-sdlc:pr-prepare`);也可依 skill 的 `description` 讓 Claude **自動觸發**(自然語言描述任務即可)。
 
@@ -49,6 +49,7 @@ claude plugin install agent-sdlc@agent-sdlc-skills
 | 4 | `commit-message` | `/agent-sdlc:commit-message` | 分析 staged diff 生 conventional commit 訊息。**人審閘**(先秀完整訊息、批准才 commit)+ 強制 `Co-Authored-By` 署名尾行。 |
 | 5 | `pr-prepare` | `/agent-sdlc:pr-prepare` | 產 PR 描述。Step 3 對**真實 diff** 重套 `classify-change` 準則(第二檢查點,抓「規劃 leaf 實作漂成 core」)+ 通用資料紅線 checklist。 |
 | 6 | `external-ai-review` | `/agent-sdlc:external-ai-review` | 外部 AI **第二審**(v1 = sub-gemini,經瀏覽器驅 Gemini)。單輪 check-fix 配 `/loop` 收斂到乾淨;送 diff 給外部前**強制去敏**;本地、pre-PR、$0。 |
+| 7 | `delta-enumerate` | `/agent-sdlc:delta-enumerate` | **Δ 關**:枚舉「這一輪自己改過的每一行」——抽樣式審查結構上看不見「你剛修的那條修得不夠寬」。未達門檻的當場修 + 一趟有界確認 Δ′;達門檻的升級成第二次 gate 7。 |
 
 ---
 
@@ -71,7 +72,7 @@ flowchart TD
     D --> F["/agent-sdlc:pr-prepare<br/>第二檢查點 + 資料紅線"]
     F --> G["/agent-sdlc:external-ai-review<br/>外部第二審(sub-gemini)"]
     G -->|"配 /loop 收斂"| G
-    G --> X["Δ 枚舉這一輪改過的每一行<br/>只報告、不 auto-fix"]
+    G --> X["/agent-sdlc:delta-enumerate<br/>Δ 枚舉這一輪改過的每一行"]
     X -->|"≥1 條達門檻"| D
     X --> E["/agent-sdlc:commit-message<br/>人審閘 + Co-Authored-By"]
     E --> H["人審(core 變更必逐行)"]
@@ -81,6 +82,7 @@ flowchart TD
 ⚠️ **commit 排在 9/10/Δ 之後**,和上游 appleboy 的 8 → 9 → 10 不同:他那兩關是 **GitHub PR bot**,
 本來就要先有 commit 和 PR;本 pack 的 reviewer 審的是 **local diff**,先 commit 只會讓審出來的修正
 變成第二顆 commit 或 amend。**Δ 是本地新增的一關**(上游沒有),定義與升級門檻見 [`SOP.md`](SOP.md)。
+⛔ **Δ 排錯位置(補做在 commit 之後)是實測過的最大單筆浪費**:整條尾巴重跑,第 7 關 ×2、Δ ×2、commit ×3 顆。
 
 ---
 
@@ -88,12 +90,13 @@ flowchart TD
 
 上面那條鏈是**流程地圖**;真正跑起來時,你不用自己記在第幾關。pack 有一支導航 skill 幫你導引:
 
-- **`/agent-sdlc:sdlc`** —— 進度檔的**更新器 / 導航器**:讀「每功能一支」的進度檔 + git 狀態,勾選已完成關卡、刷新「📍目前位置 → ⏭下一步 → 卡點」,回報下一步。它**只導航,不跑鏈**(不替你跑下一關、不核可人審閘、不 commit)。
-- **跑完整流程時每過一關自動更新**:當進度檔存在(即在跑整條鏈),6 支關卡 skill(prompt-audit / plan-feature / classify-change / commit-message / pr-prepare / external-ai-review)收尾會回呼 `/agent-sdlc:sdlc`,免你手動叫;**單獨用一支 skill 時不回呼、只在該支收尾提醒下一步**。內建 5–7 關(`/simplify`·`/security-review`·`/code-review`)無法自回呼,由**下一個跑到的** pack 關卡追認——依現行順序是 `pr-prepare`,不是 `commit-message`。
-- **進度檔**:每功能一支,放**開發 repo** 的 `docs/sdlc/<feature>-sdlc-progress.md`,是 **gitignored working scratch**(同 mem-tmp 性質,絕不進版控)。模板隨 pack:`plugins/agent-sdlc/templates/sdlc-progress.template.md`;`sdlc` 初始化時複製一份到開發 repo。
-- **結案**:第 11 關人審合併、PR merge 後,進度檔**直接刪、不歸檔**——commit 與 PR 就是永久紀錄。
+- **`/agent-sdlc:sdlc`** —— 進度檔的**更新器 / 導航器**:讀「每個 PR 一支」的進度檔 + git 狀態,勾選已完成關卡、刷新「📍目前位置 → ⏭下一步 → 卡點」,回報下一步。它**只導航,不跑鏈**(不替你跑下一關、不核可人審閘、不 commit)。
+- **跑完整流程時每過一關自動更新**:當進度檔存在(即在跑整條鏈),**7 支**關卡 skill(prompt-audit / plan-feature / classify-change / commit-message / pr-prepare / external-ai-review / **delta-enumerate**)收尾會回呼 `/agent-sdlc:sdlc`,免你手動叫;**單獨用一支 skill 時不回呼、只在該支收尾提醒下一步**。內建 5–7 關(`/simplify`·`/security-review`·`/code-review`)無法自回呼,由**下一個跑到的** pack 關卡追認——依現行順序是 `pr-prepare`,不是 `commit-message`。
+- **進度檔**:**一個 PR 一支**,放**開發 repo** 的 `docs/sdlc/<feature>-<pr>-sdlc-progress.md`,是 **gitignored working scratch**(同 mem-tmp 性質,絕不進版控)。模板隨 pack:`plugins/agent-sdlc/templates/sdlc-progress.template.md`;`sdlc` 初始化時複製一份到開發 repo。
+  ⛔ **不要一個 feature 共用一支**——導航器每一關都要讀它,實測一支 4-PR 的共用檔長到 845 行 / 80 KB。跨 PR 的東西留在 plan。
+- **結案**:第 11 關人審合併、該 PR merge 後,把還活著的東西移進 plan,進度檔**直接刪、不歸檔**——commit 與 PR 就是永久紀錄。
 
-完整 12 步 SOP(含 🚦人審閘×4、⛔去敏×1、內建×3)見 [`SOP.md`](SOP.md)。
+完整 12 步 SOP(含 🚦人審閘×3、⛔去敏×1、內建×3)見 [`SOP.md`](SOP.md)。
 
 隨時想知道「我到哪了、下一步做什麼」,打 `/agent-sdlc:sdlc` 即可。
 

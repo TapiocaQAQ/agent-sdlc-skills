@@ -154,6 +154,6 @@ description: 審查使用者即將送給 Claude(或其他 coding AI)的 prompt �
 
 <!-- DELIBERATE DELTA(vs upstream appleboy/skills):回呼 sdlc 改為「進度檔存在才接」的條件式,單獨用一支不被逼進完整流程。刻意為之——別還原成無條件 REQUIRED 版。 -->
 
-**在跑完整 agent-sdlc 生命週期?** 若有 `docs/sdlc/<feature>-sdlc-progress.md`(或你刻意啟動整條 SOP 鏈),呼叫 `/agent-sdlc:sdlc`——它勾掉本關並回報確切的 ⏭ 下一步。只導航,不替你跑下一關。
+**在跑完整 agent-sdlc 生命週期?** 若有 `docs/sdlc/<feature>-<pr>-sdlc-progress.md`(或你刻意啟動整條 SOP 鏈),呼叫 `/agent-sdlc:sdlc`——它勾掉本關並回報確切的 ⏭ 下一步。只導航,不替你跑下一關。
 
 **單獨用這支 skill?** 那你已完成——**不要**呼叫 `/agent-sdlc:sdlc`(沒有進度檔可更新)。若想繼續,通常接的下一步是 **gate 1 規劃:`/agent-sdlc:plan-feature`(或 superpowers 腦力激盪/寫計畫)**。

@@ -273,6 +273,34 @@ should never reach the reviewer:
 - Every accepted finding should leave behind a **re-runnable assertion** — a test for code, a
   check rule for docs. Then "sweep the axis" means *re-run the suite*, not *grep a string*.
 
+#### ⛔ Two rounds hitting the *same shape* is a signal to change method, not to add a round
+
+The stop conditions above all read the **volume** of findings — they fire when the reviewer
+dries up. There is a second, more expensive failure they cannot see: **the reviewer is still
+productive, and every round is a fresh instance of the same defect shape.** By the volume rule
+that is "keep sampling", and you will, indefinitely — each round genuinely finds something, so
+nothing ever looks wrong.
+
+**Trigger: two consecutive rounds whose accepted findings are instances of one shape ⇒ the next
+round is an _enumeration_ round, not another sample.** Pick the axis the shape lives on and walk
+its members exhaustively against the real code path (the method is gate Δ's — see
+`/agent-sdlc:delta-enumerate`).
+
+> Measured 2026-08-09 on a proxy gate: rounds 1–3 each landed a real finding, and all three were
+> the same shape — *a guard comparing bytes when the axis was segment identity* (occurrences
+> 3, 4, 5 and 6 of that shape across the PR). The volume rule said continue. Round 4 was
+> switched to enumeration by hand: **5 survivors, 5 accepted, and two of them were holes inside
+> the fixes rounds 1–3 had just made** — which is exactly the region sampling cannot re-enter.
+> Enumeration was not "one more round"; it was the round that ended the sequence.
+
+- ⛔ **This is a method switch, not a lane cut.** Enumeration covers a superset of the axis the
+  sampler was hitting, so it does not fail test ③ below — nothing is retired, and sampling
+  resumes afterwards if the enumeration round leaves the axis open.
+- ⚠️ **Its own failure mode**: "same shape" is a judgement call, and two findings can look alike
+  without sharing an axis. Draw the axis wrong and you enumerate the wrong set while the
+  sampler stops covering the rest. Mitigation: state the axis explicitly before enumerating,
+  and if the shape recurs *after* enumeration, the axis was wrong — not the sample size.
+
 #### Round cap
 
 - **Default cap: 10 rounds**, then hand to the user for human review.
@@ -363,17 +391,16 @@ A long review loop is token-heavy. At the end of each round, check context usage
 
 <!-- DELIBERATE DELTA vs upstream appleboy/skills: sdlc callback is CONDITIONAL on a progress file existing (standalone single-skill use isn't forced into the full lifecycle). Intentional — don't restore the unconditional "REQUIRED" form. -->
 
-**Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
+**Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-<pr>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
 
-> ⛔ **The next gate is Δ — named here on purpose, not left to the navigator alone.**
-> Δ is the one gate with no skill of its own, so nothing calls back for it; if you skip the
-> navigator, nothing else will say the word "Δ". **Hand-editing the progress file is not a
-> substitute for invoking the navigator** — the file is the navigator's *output*, and writing
-> the output yourself means the ⏭ line is whatever you remembered, not what the chain derives.
-> Measured 2026-08-09: exactly that happened, and Δ came out written as "Δ (if needed)".
+> ⛔ **The next gate is Δ — `/agent-sdlc:delta-enumerate`.** Named here on purpose, not left to
+> the navigator alone: **hand-editing the progress file is not a substitute for invoking the
+> navigator** — the file is the navigator's *output*, and writing the output yourself means the
+> ⏭ line is whatever you remembered, not what the chain derives. Measured 2026-08-09: exactly
+> that happened, and Δ came out written as "Δ (if needed)", which is not a thing the rule says.
 > **Δ is skippable only when gates 9/10 adopted *zero* findings** (empty population). Adopting
 > even one makes it mandatory — do not soften that into "if needed".
 
-**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate Δ — enumerate every line this round's gates changed, fix the sub-threshold findings in place, then run one bounded confirmation pass (Δ′) over just those fix lines; escalate anything above threshold to a second gate 7. Defined in the pack's `SOP.md`** — then gate 8 `/agent-sdlc:commit-message`, then gate 11.
+**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate Δ — `/agent-sdlc:delta-enumerate`** (enumerate every line this round's gates changed, fix the sub-threshold findings in place, then one bounded confirmation pass Δ′ over just those fix lines; escalate anything above threshold to a second gate 7) — then gate 8 `/agent-sdlc:commit-message`, then gate 11.
 
 ⚠️ **Δ's population is the code *this skill just changed*.** Every fix applied in step 4 was written by someone who had, moments earlier, been shown to be thinking too narrowly about that exact spot — which is the one place another round of *sampling* structurally cannot see, because it looks already-fixed. A clean final round means "the reviewer found nothing new by sampling", never "those fixes are wide enough". Do not let a clean pass here stand in for Δ.

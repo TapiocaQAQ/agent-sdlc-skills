@@ -61,6 +61,17 @@ Each invocation runs **one** cycle. Pair with `/loop` to repeat until clean.
 - Gemini hallucinates more than a code-tuned bot, so **every finding is a claim to check, not an instruction to obey.** For each one, confirm against the actual diff that the code and the `file:line` really exist and that the problem is real before accepting it.
 - For any finding that touches a fact, version, or API contract, verify it independently — do not take Gemini's word.
 - Drop hallucinated, stale, or architecture-conflicting findings, and record *why* each was dropped (this is the local equivalent of appleboy's "reply with a rationale before resolving").
+- ⛔ **A finding names an axis, not a list. Sweep that axis yourself in both directions before closing it.**
+  The reviewer sampled; it did not enumerate. Verifying the one instance it happened to see and
+  stopping there banks the sample as if it were the population.
+  Measured on the 2026-08-09 PR-A review: the finding was *"the doc's coverage claim skips
+  `input_schema`"* — on its face one over-stated sentence. Sweeping that axis (what does the
+  downstream gate **actually** scan, and had we run **all** of its checks?) turned up that the audit
+  had only ever run one of the gate's **two** prose checks; the other one hit two more tools and moved
+  a security-bearing lower bound from 5 to 7. **That was not in the reviewer's reply**, and following
+  step 3 literally — confirm the `file:line`, fix the sentence — would have shipped without it.
+  → For each accepted finding, ask: *what is the general form of this mistake, and where else could it
+  be?* Enumerate that set; do not pattern-match a second instance.
 - ⛔ **Judge the observation and the proposed fix separately — they fail independently.**
   A finding can be *right about the defect* and *wrong about the remedy*, and accepting it
   wholesale ships the remedy. Measured twice on one 2026-08-07 review:
@@ -354,6 +365,15 @@ A long review loop is token-heavy. At the end of each round, check context usage
 
 **Running the full agent-sdlc lifecycle?** If a `docs/sdlc/<feature>-sdlc-progress.md` exists (or you deliberately started the whole SOP chain), invoke `/agent-sdlc:sdlc` — it ticks this gate and reports the exact ⏭ next step. It navigates only; it will not run the next gate.
 
-**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate Δ — enumerate every line this round's gates changed (report-only; defined in the pack's `SOP.md`)**, then gate 8 `/agent-sdlc:commit-message`, then gate 11.
+> ⛔ **The next gate is Δ — named here on purpose, not left to the navigator alone.**
+> Δ is the one gate with no skill of its own, so nothing calls back for it; if you skip the
+> navigator, nothing else will say the word "Δ". **Hand-editing the progress file is not a
+> substitute for invoking the navigator** — the file is the navigator's *output*, and writing
+> the output yourself means the ⏭ line is whatever you remembered, not what the chain derives.
+> Measured 2026-08-09: exactly that happened, and Δ came out written as "Δ (if needed)".
+> **Δ is skippable only when gates 9/10 adopted *zero* findings** (empty population). Adopting
+> even one makes it mandatory — do not soften that into "if needed".
+
+**Used this skill standalone?** You're done — do NOT invoke `/agent-sdlc:sdlc` (there is no progress file for it to update). If you want to keep going, the step that normally follows is **gate Δ — enumerate every line this round's gates changed, fix the sub-threshold findings in place, then run one bounded confirmation pass (Δ′) over just those fix lines; escalate anything above threshold to a second gate 7. Defined in the pack's `SOP.md`** — then gate 8 `/agent-sdlc:commit-message`, then gate 11.
 
 ⚠️ **Δ's population is the code *this skill just changed*.** Every fix applied in step 4 was written by someone who had, moments earlier, been shown to be thinking too narrowly about that exact spot — which is the one place another round of *sampling* structurally cannot see, because it looks already-fixed. A clean final round means "the reviewer found nothing new by sampling", never "those fixes are wide enough". Do not let a clean pass here stand in for Δ.
